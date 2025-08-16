@@ -199,7 +199,7 @@ let client = Client<ApiEndpoints>(
 
 - **Thread Safety:** All requests are `Sendable` and can be safely used in concurrent Swift tasks.
 - **Custom Encoding/Decoding:** You can provide your own `JSONEncoder` and `JSONDecoder` for custom serialization.
-- **Multipart Uploads:** Use `URL` for single file or `[URL]` for multiple files in forms.
+- **Multipart Uploads:** Use `Data` for single file or `[Data]` for multiple files in forms.
 - **Query Parameters:** Supports both `Encodable` structs and plain dictionaries.
 
 ---
