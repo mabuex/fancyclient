@@ -19,7 +19,7 @@ public protocol QueryBuilder {
     func query(_ query: Encodable & Sendable, caseType: CaseType?) throws -> Self
 }
 
-public extension QueryBuilder {
+extension QueryBuilder {
     
     // MARK: - QueryBuilder Helpers
     

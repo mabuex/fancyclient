@@ -56,8 +56,12 @@ public class ClientBuilder: BaseBuilder, QueryBuilder, @unchecked Sendable {
         // Attach form data if available
         if let formData = resource.multipartData {
             request.httpBody = formData
-            if config.debug, let str = String(data: formData, encoding: .utf8) {
-                print("\(str)\n")
+            if config.debug {
+                if let string = String(data: formData, encoding: .utf8) {
+                    logger.debug("📨 Multipart:\n\(string)")
+                } else {
+                    logger.debug("📦 Multipart:\n Binary Data")
+                }
             }
         }
         
@@ -118,9 +122,6 @@ public class ClientBuilder: BaseBuilder, QueryBuilder, @unchecked Sendable {
             }
             return (data, nil)
         } else {
-            if config.debug {
-                print("❌ Invalid Status Code: \(response.statusCode)\n")
-            }
             throw ClientError.invalidStatusCode(response.statusCode, data)
         }
     }
@@ -132,12 +133,10 @@ public class ClientBuilder: BaseBuilder, QueryBuilder, @unchecked Sendable {
     /// - Throws: `ClientError.encodingError` if encoding fails.
     private func encode<T: Encodable>(_ request: T) throws -> Data {
         if config.debug {
-            print("➡️ Request:\n\(request.prettyJSONString)\n")
+            logger.debug("➡️ Request:\n\(request.prettyJSONString)\n")
         }
         guard let encoded = try? config.encoder.encode(request) else {
-            let error = "❌ Error encoding: <\(String(describing: type(of: request.self)))>\n"
-            if config.debug { print(error) }
-            throw ClientError.encodingError(error)
+            throw ClientError.encodingError("❌ Encoding error: \(String(describing: type(of: request.self)))")
         }
         return encoded
     }
@@ -149,17 +148,13 @@ public class ClientBuilder: BaseBuilder, QueryBuilder, @unchecked Sendable {
     /// - Throws: `ClientError.decodingError` or `ClientError.corruptData` if decoding fails.
     private func decode<T: Decodable>(_ data: Data) throws -> T {
         if config.debug {
-            print("⬅️ Response:\n\(data.prettyJSONString)\n")
+            logger.debug("⬅️ Response:\n\(data.prettyJSONString)\n")
         }
         do {
             return try config.decoder.decode(T.self, from: data)
         } catch let error as DecodingError {
-            if config.debug {
-                print("❌ Decoding Error: <\(String(describing: type(of: T.self)))>\n\(error.prettyDescription)\n")
-            }
             throw ClientError.decodingError(error.prettyDescription)
         } catch {
-            if config.debug { print("❌ Error: \(error.localizedDescription)\n") }
             throw ClientError.corruptData
         }
     }

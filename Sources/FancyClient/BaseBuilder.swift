@@ -58,11 +58,12 @@ public class BaseBuilder: @unchecked Sendable {
         let headers = resource.buildHeaderFields()
         let httpMethod = resource.method
       
-        // Debug logging for URL and headers
+        // Debug logging for URL, Method and headers
         if config.debug {
-            print("🌐 API URL: \(url.absoluteString)")
-            headers.forEach { print($0.key, $0.value) }
-            print("\n")
+            logger.debug("🌐 URL: \(url.absoluteString)")
+            logger.debug("⚡ Method: \(httpMethod.rawValue)")
+            logger.debug("📋 Headers (\(headers.count)):")
+            headers.forEach { logger.debug("🔑 \($0.key): \($0.value)") }
         }
         
         // Initialize the request
@@ -76,6 +77,12 @@ public class BaseBuilder: @unchecked Sendable {
             let cookieHeader = HTTPCookie.requestHeaderFields(with: cookies)
             cookieHeader.forEach {
                 request.setValue($0.value, forHTTPHeaderField: $0.key)
+            }
+            
+            // Debug logging for cookies
+            if config.debug {
+                logger.debug("🍪 Cookies (\(cookieHeader.count)):")
+                cookieHeader.forEach { logger.debug("🔑 \($0.key): \($0.value)") }
             }
         }
         

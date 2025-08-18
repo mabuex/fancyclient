@@ -78,3 +78,72 @@ struct Utils {
         return bytes.map { String(format: "%02x", $0) }.joined()
     }
 }
+
+// MARK: - Dictionary Encoder
+
+/// Internal storage class for `DictionaryEncoder`.
+final class DictionaryStorage {
+    var dict: [String: Any] = [:]
+}
+
+/// An encoder that encodes Swift types into `[String: Any]` dictionaries.
+///
+/// Only supports keyed encoding. Unkeyed and single-value encoding are not implemented.
+final class DictionaryEncoder: Encoder {
+    var codingPath: [any CodingKey] { [] }
+    var userInfo: [CodingUserInfoKey: Any] { [:] }
+    let storage = DictionaryStorage()
+    
+    func container<Key>(keyedBy type: Key.Type) -> KeyedEncodingContainer<Key> where Key: CodingKey {
+        let container = DictionaryKeyedEncodingContainer<Key>(codingPath: codingPath, storage: storage)
+        return KeyedEncodingContainer(container)
+    }
+    
+    func unkeyedContainer() -> any UnkeyedEncodingContainer {
+        fatalError("Unkeyed containers not implemented")
+    }
+    
+    func singleValueContainer() -> any SingleValueEncodingContainer {
+        fatalError("Single value containers not implemented")
+    }
+    
+    private struct DictionaryKeyedEncodingContainer<K: CodingKey>: KeyedEncodingContainerProtocol {
+        var codingPath: [any CodingKey]
+        var storage: DictionaryStorage
+        
+        init(codingPath: [any CodingKey], storage: DictionaryStorage) {
+            self.codingPath = codingPath
+            self.storage = storage
+        }
+        
+        mutating func encodeNil(forKey key: K) throws {
+            storage.dict[key.stringValue] = NSNull()
+        }
+        
+        mutating func encode<T: Encodable>(_ value: T, forKey key: K) throws {
+            storage.dict[key.stringValue] = value
+        }
+        
+        mutating func nestedContainer<NestedKey: CodingKey>(
+            keyedBy type: NestedKey.Type,
+            forKey key: K
+        ) -> KeyedEncodingContainer<NestedKey> {
+            storage.dict[key.stringValue] = [String: Any]()
+            return KeyedEncodingContainer(
+                DictionaryKeyedEncodingContainer<NestedKey>(codingPath: codingPath, storage: storage)
+            )
+        }
+        
+        mutating func nestedUnkeyedContainer(forKey key: K) -> any UnkeyedEncodingContainer {
+            fatalError("Unkeyed containers not implemented")
+        }
+        
+        mutating func superEncoder() -> any Encoder {
+            fatalError("Super encoders not implemented")
+        }
+        
+        mutating func superEncoder(forKey key: K) -> any Encoder {
+            fatalError("Super encoders not implemented")
+        }
+    }
+}

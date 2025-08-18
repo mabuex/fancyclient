@@ -6,19 +6,7 @@
 //
 
 import Foundation
-
-/// A dictionary representing HTTP header fields in a request, where
-/// the key is the header name and the value is the header value.
-public typealias HeaderFields = [String: String]
-
-/// Defines an API endpoint that can be used with the `Client`.
-public protocol Endpoint: Sendable {
-    /// The path component of the endpoint (appended to the base URL).
-    var path: String { get }
-    
-    /// Any additional HTTP headers required by this endpoint.
-    var headers: HeaderFields { get }
-}
+import OSLog
 
 /// A generic API client that builds and executes requests to a given set of endpoints.
 ///
@@ -72,6 +60,10 @@ public final class Client<E: Endpoint>: Sendable {
             destinationFolder: destinationFolder,
             debug: debug
         )
+        
+        if debug {
+            logger.debug("Initialized FancyClient with debug enabled.")
+        }
     }
     
     /// Creates a request builder for the given endpoint.
@@ -82,6 +74,23 @@ public final class Client<E: Endpoint>: Sendable {
         return RequestBuilder(endpoint: endpoint, config: config)
     }
 }
+
+/// A dictionary representing HTTP header fields in a request, where
+/// the key is the header name and the value is the header value.
+public typealias HeaderFields = [String: String]
+
+// MARK: - Endpoint Protocol
+
+/// Defines an API endpoint that can be used with the `Client`.
+public protocol Endpoint: Sendable {
+    /// The path component of the endpoint (appended to the base URL).
+    var path: String { get }
+    
+    /// Any additional HTTP headers required by this endpoint.
+    var headers: HeaderFields { get }
+}
+
+// MARK: - Client Configuration
 
 /// Configuration settings for the `Client`.
 public struct ClientConfig: Sendable {
@@ -121,6 +130,8 @@ extension ClientConfig {
     }
 }
 
+// MARK: - Case Type
+
 /// Represents different string case conversion strategies.
 public enum CaseType: Sendable {
     case snakeCase, camelCase, kebabCase, pascalCase
@@ -143,6 +154,8 @@ public enum CaseType: Sendable {
     }
 }
 
+// MARK: - HTTP Methods
+
 /// Supported HTTP request methods.
 enum HTTPMethod: String, Sendable {
     case get = "GET"
@@ -151,6 +164,8 @@ enum HTTPMethod: String, Sendable {
     case patch = "PATCH"
     case delete = "DELETE"
 }
+
+// MARK: - Client Error
 
 /// Common errors that can occur when using the `Client`.
 public enum ClientError: Error, LocalizedError, Sendable {
@@ -192,3 +207,10 @@ public enum ClientError: Error, LocalizedError, Sendable {
         }
     }
 }
+
+// MARK: - Logger
+
+let logger = Logger(
+    subsystem: Bundle.main.bundleIdentifier!,
+    category: "fancyclient.debugging"
+)

@@ -134,7 +134,7 @@ func filterProductsByPrice(min: Double, max: Double) async throws -> [Product] {
 // Example: Download a file
 func download(_ path: String) async throws {
     let downloadTask = try await client
-        .endpoint(.downloads(path: path))
+        .endpoint(.download(path: path))
         .download()
         .execute { events in
             for await event in events {
