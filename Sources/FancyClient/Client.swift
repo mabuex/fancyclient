@@ -26,7 +26,8 @@ public final class Client<E: Endpoint>: Sendable {
     ///
     /// Use this initializer to set up a reusable client for communicating with your API.
     /// It can be configured with custom JSON coders, key conversion strategies,
-    /// cookie policies, download paths, and optional debug logging.
+    /// a `URLSessionConfiguration` for networking behavior, download paths,
+    /// and optional debug logging.
     ///
     /// - Parameters:
     ///   - baseUrl: The base URL that all endpoint paths will be appended to.
@@ -34,20 +35,21 @@ public final class Client<E: Endpoint>: Sendable {
     ///              Defaults to `ClientConfig.defaultEncoder`.
     ///   - decoder: The `JSONDecoder` used when decoding response bodies.
     ///              Defaults to `ClientConfig.defaultDecoder`.
+    ///   - sessionConfig: The `URLSessionConfiguration` that controls caching,
+    ///                    cookies, timeouts, and connectivity policies.
+    ///                    Defaults to `.default`.
     ///   - caseType: The default `CaseType` for encoding/decoding keys
     ///               (e.g., `.snakeCase` or `.camelCase`). Defaults to `.snakeCase`.
-    ///   - httpCookieAcceptPolicy: The policy for accepting HTTP cookies.
-    ///                             Defaults to `.always`.
     ///   - destinationFolder: Local directory name where downloaded files will be stored.
-    ///                   Defaults to `"downloads"`.
+    ///                        Defaults to `"downloads"`.
     ///   - debug: Enables verbose logging of requests and responses if `true`.
     ///            Defaults to `false`.
     public init(
         baseUrl: URL,
         encoder: JSONEncoder = ClientConfig.defaultEncoder,
         decoder: JSONDecoder = ClientConfig.defaultDecoder,
-        defaultCaseType caseType: CaseType = .snakeCase,
-        httpCookieAcceptPolicy: HTTPCookie.AcceptPolicy = .always,
+        sessionConfig: URLSessionConfiguration = .default,
+        caseType: CaseType = .snakeCase,
         destinationFolder: String = "downloads",
         debug: Bool = false
     ) {
@@ -55,7 +57,7 @@ public final class Client<E: Endpoint>: Sendable {
             baseUrl: baseUrl,
             encoder: encoder,
             decoder: decoder,
-            httpCookieAcceptPolicy: httpCookieAcceptPolicy,
+            sessionConfig: sessionConfig,
             caseType: caseType,
             destinationFolder: destinationFolder,
             debug: debug
@@ -64,6 +66,15 @@ public final class Client<E: Endpoint>: Sendable {
         if debug {
             logger.debug("Initialized FancyClient with debug enabled.")
         }
+    }
+    
+    /// Provides access to the cookie storage used by this client.
+    ///
+    /// By default, this is `HTTPCookieStorage.shared` if the session configuration
+    /// did not specify a custom storage. Cookies are automatically handled for requests
+    /// and responses when `httpShouldSetCookies = true`.
+    public var cookieStore: HTTPCookieStorage {
+        config.sessionConfig.httpCookieStorage ?? HTTPCookieStorage.shared
     }
     
     /// Creates a request builder for the given endpoint.
@@ -97,7 +108,7 @@ public struct ClientConfig: Sendable {
     public var baseUrl: URL
     public var encoder: JSONEncoder
     public var decoder: JSONDecoder
-    public var httpCookieAcceptPolicy: HTTPCookie.AcceptPolicy
+    public var sessionConfig: URLSessionConfiguration
     public var caseType: CaseType
     public var destinationFolder: String
     public var debug: Bool

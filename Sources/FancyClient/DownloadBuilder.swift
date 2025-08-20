@@ -25,8 +25,8 @@ public class DownloadBuilder: BaseBuilder, QueryBuilder, @unchecked Sendable {
     ///               Defaults to the builder's configured case type.
     /// - Returns: The same ``DownloadBuilder`` instance for method chaining.
     /// - Throws: Any error thrown while encoding the query object.
-    public func query(_ query: Encodable & Sendable, caseType: CaseType? = nil) throws -> Self {
-        resource.query = try getQueryItems(query, caseType: caseType ?? config.caseType)
+    public func query(_ query: some Encodable & Sendable, caseType: CaseType? = nil) -> Self {
+        resource.query = getQueryItems(query, caseType: caseType ?? config.caseType)
         return self
     }
     
@@ -46,13 +46,13 @@ public class DownloadBuilder: BaseBuilder, QueryBuilder, @unchecked Sendable {
     ///
     /// - Throws: An error if the download fails.
     public func execute(
-        completion: ((AsyncStream<DownloadTask.StreamEvent>) async -> Void)? = nil
+        completion: ((AsyncStream<DownloadTask.DownloadEvent>) async -> Void)? = nil
     ) async throws -> DownloadTask {
         // Initialize the Download object
         let downloadTask = await DownloadTask.make(
             request: baseRequest,
             destinationFolder: config.destinationFolder,
-            config: sessionConfig
+            config: config.sessionConfig
         )
         
         // Start the download task

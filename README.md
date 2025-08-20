@@ -65,6 +65,7 @@ enum ApiEndpoints: Endpoint {
     case products(Int? = nil, path: String? = nil)
     case upload
     case download(path: String)
+    case chat(_ roomId: String)
     
     var path: String {
         switch self {
@@ -79,6 +80,7 @@ enum ApiEndpoints: Endpoint {
             }
         case .upload: return "/upload"
         case .download(let path): return "/download/\(path)"
+        case .chat(let roomId): "/rooms/\(roomId)"
         }
     }
 
@@ -154,6 +156,42 @@ func download(_ path: String) async throws {
         }
 }
 
+// ⚠️ Experimental
+// Example: Connect to a WebSocket
+func connect(for roomId: String) async {
+    let stream = client.endpoint(.chat(roomId)).socket().stream()
+    
+    await stream.connect()
+    
+    do {
+        for try await event in stream {
+            switch event {
+            case .connected:
+                print("Connected ✅")
+            case .text(let text):
+                print("Message:", text)
+            case .disconnected(let error):
+                print("Closed ❌", error ?? "")
+            default: break
+            }
+        }
+    } catch {
+        print(error.localizedDescription)
+    }
+}
+
+func sendMessage(_ text: String) async {
+    do {
+        try await stream?.send(text)
+    } catch {
+        print("Failed to send message:", error.localizedDescription)
+    }
+}
+
+func disconnect() async {
+    await stream?.disconnect()
+}
+
 ```
 
 ---
@@ -183,10 +221,19 @@ let customDecoder = { () -> JSONDecoder in
     return decoder
 }()
 
+let customSessionConfig = { () -> URLSessionConfiguration in
+    let config = URLSessionConfiguration.default
+    config.requestCachePolicy = .reloadIgnoringLocalCacheData
+    config.httpShouldSetCookies = false
+    config.httpCookieAcceptPolicy = .never
+    return config
+}()
+
 let client = Client<ApiEndpoints>(
     baseUrl: URL(string: "https://your-api.com/api/v1")!,
     encoder: customEncoder,
     decoder: customDecoder,
+    sessionConfig: customSessionConfig,
     defaultCaseType: .kebabCase, // Forms and queries
     debug: true
 )

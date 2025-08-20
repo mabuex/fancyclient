@@ -33,7 +33,7 @@ public actor DownloadTask: Identifiable {
     /// - `.progress` is emitted during transfer
     /// - Terminal: `.completed`, `.failed`, `.canceled`
     /// - The stream ends after a terminal event
-    public enum StreamEvent: Sendable {
+    public enum DownloadEvent: Sendable {
         case progress(currentBytes: Int64, totalBytes: Int64)
         case completed(url: URL)
         case paused(resumeData: Data)
@@ -82,15 +82,18 @@ public actor DownloadTask: Identifiable {
     public private(set) var resumeData: Data?
     
     /// Stream of download events.
-    public let events: AsyncStream<StreamEvent>
+    public let events: AsyncStream<DownloadEvent>
     
     // MARK: Private state
     
     private let destinationFolder: String
-    private let continuation: AsyncStream<StreamEvent>.Continuation
+    
+    private let continuation: AsyncStream<DownloadEvent>.Continuation
     
     private var session: URLSession?
+    
     private var delegate: SessionDelegate?  // keep a strong reference
+    
     private var task: URLSessionDownloadTask?
     
     private var isFinished = false
@@ -101,7 +104,7 @@ public actor DownloadTask: Identifiable {
     /// - Parameter destinationFolder: Subfolder inside Documents where the file will be moved.
     public init(destinationFolder: String) {
         self.destinationFolder = destinationFolder
-        (events, continuation) = AsyncStream.makeStream(of: StreamEvent.self)
+        (events, continuation) = AsyncStream.makeStream(of: DownloadEvent.self)
     }
     
     // MARK: Configuration (actor-isolated)
@@ -112,8 +115,7 @@ public actor DownloadTask: Identifiable {
     ///   - cookieStorage: Cookie storage to use (default `.shared`).
     public func configure(
         request: URLRequest,
-        config: URLSessionConfiguration,
-        cookieStorage: HTTPCookieStorage
+        config: URLSessionConfiguration
     ) {
         // Bridge URLSession delegate → actor via a small forwarding object.
         let delegate = SessionDelegate(destinationFolder) { [weak self] event in
@@ -137,10 +139,9 @@ public actor DownloadTask: Identifiable {
         request: URLRequest,
         destinationFolder: String,
         config: URLSessionConfiguration,
-        cookieStorage: HTTPCookieStorage = .shared
     ) async -> DownloadTask {
         let instance = DownloadTask(destinationFolder: destinationFolder)
-        await instance.configure(request: request, config: config, cookieStorage: cookieStorage)
+        await instance.configure(request: request, config: config)
         return instance
     }
     
@@ -220,7 +221,7 @@ public actor DownloadTask: Identifiable {
     }
     
     /// Emit a terminal event exactly once and finish the stream.
-    private func emitOnce(_ event: StreamEvent) {
+    private func emitOnce(_ event: DownloadEvent) {
         guard !isFinished else { return }
         isFinished = true
         continuation.yield(event)

@@ -34,60 +34,31 @@ public class BaseBuilder: @unchecked Sendable {
         set { lock.withLock { _resource = newValue } }
     }
     
-    /// Shared cookie storage used by all requests in this builder.
-    let sharedCookieStorage = HTTPCookieStorage.shared
-    
-    /// Configures the `URLSession` to always accept cookies
-    /// and store them in the shared cookie storage.
-    var sessionConfig: URLSessionConfiguration {
-        let config = URLSessionConfiguration.default
-        config.httpShouldSetCookies = true
-        config.httpCookieAcceptPolicy = self.config.httpCookieAcceptPolicy
-        config.httpCookieStorage = sharedCookieStorage
-        return config
-    }
-    
     /// Builds a `URLRequest` based on the current `resource` and `config`.
-    /// - Constructs the full endpoint URL from the base URL + resource path.
-    /// - Adds all HTTP headers from the `resource`.
-    /// - Appends any stored cookies to the request.
-    /// - Logs debug information if `config.debug` is enabled.
+    ///
+    /// - Constructs the full endpoint URL from the `baseUrl` and the resource path.
+    /// - Applies the HTTP method defined by the resource.
+    /// - Adds all HTTP headers and cookies (if policy allows).
+    /// - Logs URL, method, headers, and cookies when `config.debug` is enabled.
+    ///
+    /// - Returns: A fully constructed `URLRequest` ready to be sent with `URLSession`.
     var baseRequest: URLRequest {
-        // Build the endpoint URL and collect headers/method
         let url = resource.buildEndpointUrl(config.baseUrl)
-        let headers = resource.buildHeaderFields()
         let httpMethod = resource.method
-      
-        // Debug logging for URL, Method and headers
-        if config.debug {
-            logger.debug("🌐 URL: \(url.absoluteString)")
-            logger.debug("⚡ Method: \(httpMethod.rawValue)")
-            logger.debug("📋 Headers (\(headers.count)):")
-            headers.forEach { logger.debug("🔑 \($0.key): \($0.value)") }
-        }
         
-        // Initialize the request
+        // Merge headers + cookies
+        var allHeaders = resource.buildHeaderFields()
+        allHeaders.merge(cookiesHeader(for: url)) { current, _ in current }
+        
+        // Build the request
         var request = URLRequest(url: url)
-        
-        // Attach HTTP headers
-        headers.forEach { request.addValue($0.value, forHTTPHeaderField: $0.key) }
-        
-        // Attach cookies (if available) for this URL
-        if let cookies = sharedCookieStorage.cookies(for: url) {
-            let cookieHeader = HTTPCookie.requestHeaderFields(with: cookies)
-            cookieHeader.forEach {
-                request.setValue($0.value, forHTTPHeaderField: $0.key)
-            }
-            
-            // Debug logging for cookies
-            if config.debug {
-                logger.debug("🍪 Cookies (\(cookieHeader.count)):")
-                cookieHeader.forEach { logger.debug("🔑 \($0.key): \($0.value)") }
-            }
-        }
-        
-        // Set HTTP method (GET, POST, etc.)
         request.httpMethod = httpMethod.rawValue
+        request.allHTTPHeaderFields = allHeaders
+        
+        // Debug logging
+        if config.debug {
+            logRequest(url, method: httpMethod, headers: allHeaders)
+        }
         
         return request
     }
@@ -101,5 +72,24 @@ public class BaseBuilder: @unchecked Sendable {
     init(resource: Resource, config: ClientConfig) {
         self._resource = resource
         self.config = config
+    }
+    
+    // MARK: - Helpers
+    
+    private func cookiesHeader(for url: URL) -> [String: String] {
+        guard config.sessionConfig.httpCookieAcceptPolicy == .always,
+              let cookies = config.sessionConfig.httpCookieStorage?.cookies(for: url),
+              !cookies.isEmpty else {
+            return [:]
+        }
+        return HTTPCookie.requestHeaderFields(with: cookies)
+    }
+    
+    private func logRequest(_ url: URL, method: HTTPMethod, headers: [String: String]) {
+        logger.debug("""
+        🌐 URL: \(url.absoluteString)
+        ⚡ Method: \(method.rawValue)
+        📋 Headers: \(headers)
+        """)
     }
 }

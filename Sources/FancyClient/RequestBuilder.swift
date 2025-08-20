@@ -8,16 +8,38 @@
 import Foundation
 
 /// A type-safe, chainable builder for constructing HTTP requests (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`)
-/// targeting a given `Endpoint`.
+/// or WebSocket connections targeting a given `Endpoint`.
 ///
 /// `RequestBuilder` acts as the entry point for creating requests to the API.
 /// It encapsulates the configuration of HTTP methods, request bodies, headers,
 /// query parameters, and multipart form data.
 ///
-/// All generated requests are returned as `QueryBuilder` instances, allowing
-/// additional configuration before execution.
+/// All generated requests return specialized builder types (`ClientBuilder`, `DownloadBuilder`, `SocketBuilder`)
+/// that support additional configuration before execution.
 ///
 /// This type is `Sendable`, making it safe for use in Swift concurrency contexts.
+///
+/// Example:
+/// ```swift
+/// // JSON POST
+/// let user = UserRequest(name: "Alice")
+/// let response = try await client
+///     .endpoint(.users)
+///     .post(user)
+///     .execute()
+///
+/// // File Upload
+/// let upload = try await client
+///     .endpoint(.files)
+///     .post(multipart: fileData)
+///     .execute()
+///
+/// // WebSocket
+/// let stream = try await client
+///     .endpoint(.chat(for: "general"))
+///     .socket()
+///     .stream()
+/// ```
 public final class RequestBuilder: Sendable {
     
     // MARK: - Properties
@@ -45,10 +67,16 @@ public final class RequestBuilder: Sendable {
     /// Creates a `GET` request.
     ///
     /// - Parameter headers: Additional request headers (default: empty).
-    /// - Returns: A `QueryBuilder` for further customization.
-    public func get(
-        headers: HeaderFields = [:]
-    ) -> ClientBuilder {
+    /// - Returns: A `ClientBuilder` for further customization.
+    ///
+    /// Example:
+    /// ```swift
+    /// let users = try await client
+    ///     .endpoint(.users)
+    ///     .get()
+    ///     .execute()
+    /// ```
+    public func get(headers: HeaderFields = [:]) -> ClientBuilder {
         let resource = Resource(method: .get, headers: headers, endpoint: endpoint)
         return ClientBuilder(resource: resource, config: config)
     }
@@ -60,9 +88,17 @@ public final class RequestBuilder: Sendable {
     /// - Parameters:
     ///   - request: The encodable request body.
     ///   - headers: Additional request headers (default: empty).
-    /// - Returns: A `QueryBuilder` for further customization.
-    public func post<T: Encodable & Sendable>(
-        _ request: T,
+    /// - Returns: A `ClientBuilder` for further customization.
+    ///
+    /// Example:
+    /// ```swift
+    /// let response = try await client
+    ///     .endpoint(.users)
+    ///     .post(NewUser(name: "Alice"))
+    ///     .execute()
+    /// ```
+    public func post(
+        _ request: some Encodable & Sendable,
         headers: HeaderFields = [:]
     ) -> ClientBuilder {
         let resource = Resource(
@@ -77,14 +113,21 @@ public final class RequestBuilder: Sendable {
     /// Creates a `POST` request with multipart form data.
     ///
     /// - Parameters:
-    ///   - form: The multipart form data payload.
+    ///   - multipart: The multipart form data payload.
     ///   - headers: Additional request headers (default: empty).
-    ///   - boundary: The multipart boundary string (default: a random UUID).
-    ///   - caseType: The case style for encoding keys (default: `.snakeCase` or value from config).
+    ///   - caseType: The case style for encoding keys (default: `.snakeCase` or the value from config).
     /// - Throws: An error if form data generation fails.
-    /// - Returns: A `QueryBuilder` for further customization.
+    /// - Returns: A `ClientBuilder` for further customization.
+    ///
+    /// Example:
+    /// ```swift
+    /// let upload = try await client
+    ///     .endpoint(.files)
+    ///     .post(multipart: UploadForm(file: data))
+    ///     .execute()
+    /// ```
     public func post(
-        multipart: Encodable & Sendable,
+        multipart: some Encodable & Sendable,
         headers: HeaderFields = [:],
         caseType: CaseType? = nil
     ) throws -> ClientBuilder {
@@ -100,8 +143,16 @@ public final class RequestBuilder: Sendable {
     // MARK: - PUT
     
     /// Creates a `PUT` request with an encodable body.
-    public func put<T: Encodable & Sendable>(
-        _ request: T,
+    ///
+    /// Example:
+    /// ```swift
+    /// let updated = try await client
+    ///     .endpoint(.user(id: "123"))
+    ///     .put(UpdateUser(name: "Bob"))
+    ///     .execute()
+    /// ```
+    public func put(
+        _ request: some Encodable & Sendable,
         headers: HeaderFields = [:]
     ) -> ClientBuilder {
         let resource = Resource(
@@ -115,7 +166,7 @@ public final class RequestBuilder: Sendable {
     
     /// Creates a `PUT` request with multipart form data.
     public func put(
-        multipart: Encodable & Sendable,
+        multipart: some Encodable & Sendable,
         headers: HeaderFields = [:],
         caseType: CaseType? = nil
     ) throws -> ClientBuilder {
@@ -131,8 +182,8 @@ public final class RequestBuilder: Sendable {
     // MARK: - PATCH
     
     /// Creates a `PATCH` request with an encodable body.
-    public func patch<T: Encodable & Sendable>(
-        _ request: T,
+    public func patch(
+        _ request: some Encodable & Sendable,
         headers: HeaderFields = [:]
     ) -> ClientBuilder {
         let resource = Resource(
@@ -146,7 +197,7 @@ public final class RequestBuilder: Sendable {
     
     /// Creates a `PATCH` request with multipart form data.
     public func patch(
-        multipart: Encodable & Sendable,
+        multipart: some Encodable & Sendable,
         headers: HeaderFields = [:],
         caseType: CaseType? = nil
     ) throws -> ClientBuilder {
@@ -163,29 +214,66 @@ public final class RequestBuilder: Sendable {
     
     /// Creates a `DELETE` request.
     ///
-    /// - Parameter headers: Additional request headers (default: empty).
-    /// - Returns: A `QueryBuilder` for further customization.
-    public func delete(
-        headers: HeaderFields = [:]
-    ) -> ClientBuilder {
+    /// Example:
+    /// ```swift
+    /// try await client
+    ///     .endpoint(.user(id: "123"))
+    ///     .delete()
+    ///     .execute()
+    /// ```
+    public func delete(headers: HeaderFields = [:]) -> ClientBuilder {
         let resource = Resource(method: .delete, headers: headers, endpoint: endpoint)
         return ClientBuilder(resource: resource, config: config)
     }
     
-    
     // MARK: - Download
     
-    public func download(
-        headers: HeaderFields = [:]
-    ) -> DownloadBuilder {
+    /// Creates a download request that streams progress updates.
+    ///
+    /// Example:
+    /// ```swift
+    /// let download = try await client
+    ///     .endpoint(.download(fileID: "123"))
+    ///     .download()
+    ///     .execute { events in
+    ///         for await event in events {
+    ///             switch event {
+    ///             case let .progress(current, total): print("📈", current, "/", total)
+    ///             case let .completed(url): print("✅ Saved to:", url)
+    ///             case let .failed(error): print("❌", error.localizedDescription)
+    ///             default: break
+    ///             }
+    ///         }
+    ///     }
+    /// ```
+    public func download(headers: HeaderFields = [:]) -> DownloadBuilder {
         let resource = Resource(method: .get, headers: headers, endpoint: endpoint)
         return DownloadBuilder(resource: resource, config: config)
+    }
+    
+    // MARK: - WebSocket
+    
+    /// Creates a WebSocket request.
+    ///
+    /// Example:
+    /// ```swift
+    /// let stream = try await client
+    ///     .endpoint(.chat(for: "general"))
+    ///     .socket()
+    ///     .stream()
+    /// ```
+    public func socket(
+        encrypted: Bool = true,
+        headers: HeaderFields = [:]
+    ) -> SocketBuilder {
+        let resource = Resource(encrypted: encrypted, headers: headers, endpoint: endpoint)
+        return SocketBuilder(resource: resource, config: config)
     }
     
     // MARK: - Helpers
     
     private func multiPartResource(
-        multipart: Encodable & Sendable,
+        multipart: some Encodable & Sendable,
         method: HTTPMethod,
         headers: HeaderFields,
         caseType: CaseType
