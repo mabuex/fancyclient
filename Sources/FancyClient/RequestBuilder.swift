@@ -110,6 +110,30 @@ public final class RequestBuilder: Sendable {
         return ClientBuilder(resource: resource, config: config)
     }
     
+    /// Creates a `POST` request without an encodable body.
+    ///
+    /// - Parameters:
+    ///   - headers: Additional request headers (default: empty).
+    /// - Returns: A `ClientBuilder` for further customization.
+    ///
+    /// Example:
+    /// ```swift
+    /// let response = try await client
+    ///     .endpoint(.users)
+    ///     .post()
+    ///     .execute()
+    /// ```
+    public func post(
+        headers: HeaderFields = [:]
+    ) -> ClientBuilder {
+        let resource = Resource(
+            method: .post,
+            headers: headers,
+            endpoint: endpoint
+        )
+        return ClientBuilder(resource: resource, config: config)
+    }
+    
     /// Creates a `POST` request with multipart form data.
     ///
     /// - Parameters:
@@ -164,6 +188,26 @@ public final class RequestBuilder: Sendable {
         return ClientBuilder(resource: resource, config: config)
     }
     
+    /// Creates a `PUT` request without an encodable body.
+    ///
+    /// Example:
+    /// ```swift
+    /// let updated = try await client
+    ///     .endpoint(.user(id: "123"))
+    ///     .put()
+    ///     .execute()
+    /// ```
+    public func put(
+        headers: HeaderFields = [:]
+    ) -> ClientBuilder {
+        let resource = Resource(
+            method: .put,
+            headers: headers,
+            endpoint: endpoint
+        )
+        return ClientBuilder(resource: resource, config: config)
+    }
+    
     /// Creates a `PUT` request with multipart form data.
     public func put(
         multipart: some Encodable & Sendable,
@@ -188,6 +232,18 @@ public final class RequestBuilder: Sendable {
     ) -> ClientBuilder {
         let resource = Resource(
             request: request,
+            method: .patch,
+            headers: headers,
+            endpoint: endpoint
+        )
+        return ClientBuilder(resource: resource, config: config)
+    }
+    
+    /// Creates a `PATCH` request without an encodable body.
+    public func patch(
+        headers: HeaderFields = [:]
+    ) -> ClientBuilder {        
+        let resource = Resource(
             method: .patch,
             headers: headers,
             endpoint: endpoint

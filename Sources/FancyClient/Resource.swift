@@ -95,7 +95,12 @@ struct Resource: Sendable {
         endpoint: Endpoint
     ) {
         self.method = method
-        self.headers = headers
+        switch method {
+        case .patch, .post, .put:
+            self.headers = headers.merging(["Content-Length": "0"]) { _, new in new }
+        case .delete, .get:
+            self.headers = headers
+        }
         self.endpoint = endpoint
     }
     
